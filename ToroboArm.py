@@ -72,10 +72,10 @@ class ToroboArm(object):
                 self._sock.close()
 
     def _process(self):
-        pass
+        return 0.1
 
     def _process_stub(self):
-        pass
+        return 0.1
 
     def run(self):
         while not self._exit_event.is_set():
@@ -133,22 +133,4 @@ class ToroboArm(object):
 
 
 if __name__ == '__main__':
-    t = ToroboArm('tcp://localhost:5555', True)
-    t.start()
-    time.sleep(0.1)
-    t.start()
-    time.sleep(0.1)
-    t.stub = True
-    time.sleep(0.1)
-    t.stub = False
-    time.sleep(0.1)
-    t.start()
-    time.sleep(0.1)
-    t.stop()
-    time.sleep(0.1)
-    t.stop()
-    time.sleep(0.1)
-    t.exit()
-    time.sleep(0.1)
-    t.exit()
-    t.stub
+    ToroboArm('tcp://localhost:5555', ToroboArm.REQ, True)

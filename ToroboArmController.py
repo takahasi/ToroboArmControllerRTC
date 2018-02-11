@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import time
 import logging
 import json
 import Queue
@@ -54,15 +53,22 @@ class ToroboArmController(ToroboArm.ToroboArm):
         self.mode_point()
         self.clear_command()
         self.move_home()
+        return True
 
     def stop(self):
         super(ToroboArmController, self).stop()
         with self._lock:
             self._command_q.queue.clear()
+        return True
 
     def send_command(self, command):
+        if self._command_q.full():
+            logging.error("command queue is full")
+            return False
+
         with self._lock:
-            self._command_q.put(command)
+            self._command_q.put_nowait(command)
+        return True
 
     def clear_command(self):
         logging.debug("clear command")
@@ -70,8 +76,7 @@ class ToroboArmController(ToroboArm.ToroboArm):
             "command": "--tc",
             "joint_id": "all"
         }
-        self.send_command(c)
-        return
+        return self.send_command(c)
 
     def reset(self):
         logging.debug("reset")
@@ -79,8 +84,7 @@ class ToroboArmController(ToroboArm.ToroboArm):
             "command": "--reset",
             "joint_id": "all",
         }
-        self.send_command(c)
-        return
+        return self.send_command(c)
 
     def servo_on(self):
         logging.debug("servo on")
@@ -89,8 +93,7 @@ class ToroboArmController(ToroboArm.ToroboArm):
             "servo_state": "ON",
             "joint_id": "all",
         }
-        self.send_command(c)
-        return
+        return self.send_command(c)
 
     def servo_off(self):
         logging.debug("servo off")
@@ -99,8 +102,7 @@ class ToroboArmController(ToroboArm.ToroboArm):
             "servo_state": "OFF",
             "joint_id": "all",
         }
-        self.send_command(c)
-        return
+        return self.send_command(c)
 
     def mode_point(self):
         logging.debug("mode point")
@@ -109,8 +111,7 @@ class ToroboArmController(ToroboArm.ToroboArm):
             "mode_id": "0",
             "joint_id": "all"
         }
-        self.send_command(c)
-        return
+        return self.send_command(c)
 
     def mode_free(self):
         logging.debug("mode free")
@@ -119,16 +120,17 @@ class ToroboArmController(ToroboArm.ToroboArm):
             "mode_id": "5",
             "joint_id": "all"
         }
-        self.send_command(c)
-        return
+        return self.send_command(c)
 
     def move_home(self, speed=3):
         logging.debug("move home")
-        self.move([0, 0, 0, 0, 0, 0, 0], speed)
-        return
+        return self.move([0, 0, 0, 0, 0, 0, 0], speed)
 
     def move(self, j, speed=3):
         logging.debug("move")
+        if len(j) != 7:
+            logging.error("move: illegal input=" + str(j))
+            return False
         for i in range(7):
             c = {
                 "command": "--tpts",
@@ -136,30 +138,15 @@ class ToroboArmController(ToroboArm.ToroboArm):
                 "pos": str(j[i]),
                 "time": str(speed)
             }
-            self.send_command(c)
+            if not self.send_command(c):
+                return False
 
         c = {
             "command": "--ts",
             "joint_id": "all",
         }
-        self.send_command(c)
-        return
+        return self.send_command(c)
 
 
 if __name__ == '__main__':
-    # self test
-    t = ToroboArmController(debug=True)
-    t.start()
-    time.sleep(0.1)
-    t.reset()
-    t.servo_on()
-    t.mode_point()
-    t.clear_command()
-    t.move_home()
-    t.move([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7])
-    t.mode_free()
-    t.servo_off()
-    time.sleep(5)
-    t.stop()
-    time.sleep(0.1)
-    t.exit()
+    ToroboArmController()

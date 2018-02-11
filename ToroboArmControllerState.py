@@ -68,16 +68,4 @@ class ControllerState(object):
 
 
 if __name__ == '__main__':
-    s = ControllerState()
-    print("dump-> \n" + str(s.dump()))
-    s.status = "stop"
-    s.teaching = True
-    s.speed = 1.0
-    print("dump-> \n" + str(s.dump()))
-    s.status = "pause"
-    s.teaching = False
-    print("dump-> \n" + str(s.dump()))
-    s.status = "normal"
-    s.speed = 10.0
-    print("dump-> \n" + str(s.dump()))
-    del(s)
+    ControllerState()

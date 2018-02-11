@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import time
 import logging
 import json
 
@@ -170,28 +169,4 @@ class ToroboArmMonitor(ToroboArm.ToroboArm):
 
 
 if __name__ == '__main__':
-    # self test
-    t = ToroboArmMonitor(debug=True)
-    t.start()
-    time.sleep(0.1)
-    t.joints
-    t.vel
-    t.tmp
-    t.trq
-    t.moving
-    t.mode
-    t.error
-    t.trjstatus
-    time.sleep(1.0)
-    t.joints
-    t.vel
-    t.tmp
-    t.trq
-    t.moving
-    t.mode
-    t.error
-    t.trjstatus
-    time.sleep(0.1)
-    t.stop()
-    time.sleep(0.1)
-    t.exit()
+    ToroboArmMonitor()
