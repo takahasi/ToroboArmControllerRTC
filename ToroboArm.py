@@ -100,7 +100,7 @@ class ToroboArm(object):
                 time.sleep(sleep)
             else:
                 # wait until start communication
-                self._start_event.wait(1)
+                self._start_event.wait(0.5)
 
         logging.debug("run-thread exit")
 
