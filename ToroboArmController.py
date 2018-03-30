@@ -15,6 +15,8 @@ class ToroboArmController(ToroboArm.ToroboArm):
                  debug=False):
         super(ToroboArmController, self).__init__(port, socktype, debug)
         self._command_q = Queue.Queue()
+        self._middle = None
+        
 
     def _process(self):
         # processing
@@ -131,22 +133,29 @@ class ToroboArmController(ToroboArm.ToroboArm):
         if len(j) != 7:
             logging.error("move: illegal input=" + str(j))
             return False
-        for i in range(7):
+        
+        if self._middle.middle_idl_state != self._middle.MIDDLE_IDL_STATE_PAUSE:
+            for i in range(7):
+                c = {
+                    "command": "--tpts",
+                    "joint_id": str(i + 1),
+                    "pos": str(j[i]),
+                    "time": str(speed)
+                }
+                if not self.send_command(c):
+                    return False
+                
             c = {
-                "command": "--tpts",
-                "joint_id": str(i + 1),
-                "pos": str(j[i]),
-                "time": str(speed)
-            }
-            if not self.send_command(c):
-                return False
+                    "command": "--ts",
+                    "joint_id": "all",
+                }
+            return self.send_command(c)
 
-        c = {
-            "command": "--ts",
-            "joint_id": "all",
-        }
-        return self.send_command(c)
+    def set_middle(self, middle):
+        self._middle = middle
 
+    def unset_middle(self):
+        self._middle = None
 
 if __name__ == '__main__':
     ToroboArmController()
