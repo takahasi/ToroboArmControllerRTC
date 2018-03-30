@@ -15,6 +15,10 @@ from omniORB import CORBA, PortableServer
 import JARA_ARM, JARA_ARM__POA
 
 
+import ManipulatorCommonInterface_DataTypes_idl as DATATYPES_IDL
+import ManipulatorCommonInterface_Common_idl as COMMON_IDL
+import math
+
 class ManipulatorCommonInterface_Common_i (JARA_ARM__POA.ManipulatorCommonInterface_Common):
     """
     @class ManipulatorCommonInterface_Common_i
@@ -26,55 +30,148 @@ class ManipulatorCommonInterface_Common_i (JARA_ARM__POA.ManipulatorCommonInterf
         @brief standard constructor
         Initialise member variables here
         """
-        pass
+        self._SYSTEMMODE_RUN = 2
+        
+        self._TRJSTATUS_START = 1
+        self._TRJSTATUS_RUNNING = 2
+        self._TRJSTATUS_NEXTPOINT = 3
+        
+        self._TRJREMAIN_BUFFER_MAX = 1000
+        
+        self._controller = None
+        self._monitor = None
+        self._middle = None
+    
+        self._axisnum = 7
+        self._limit_joint_deg = [[160,-160],[105,-45],[160,-160],[105,-45],[160,-160],[90,-90],[160,-160]]
+        
+        
+    def set_controller(self, controller):
+        self._controller = controller
+
+    def unset_controller(self, controller):
+        self._controller = None
+
+    def set_monitor(self, monitor):
+        self._monitor = monitor
+
+    def unset_monitor(self, monitor):
+        self._monitor = None
+
+    def set_middle(self, middle):
+        self._middle = middle
+
+    def unset_middle(self, middle):
+        self._middle = None
+
+    def _create_activealarm(self, error):
+        alarm_list = []
+        
+        for i, joint_warning in enumerate(error):
+            alarm_list.append(COMMON_IDL._0_JARA_ARM.Alarm(0xFFFFFFFF,COMMON_IDL._0_JARA_ARM.WARNING,'{:X}'.format(joint_warning)))
+            
+        return alarm_list    
 
     # RETURN_ID clearAlarms()
     def clearAlarms(self):
-        raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
-        # *** Implement me
-        # Must return: result
+        if self._controller:
+            self._controller.reset()
+            msg = 'the Error is not clear if you do not remove the error factor.'
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK, msg)
+        else:
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.NG,'')
 
     # RETURN_ID getActiveAlarm(out AlarmSeq alarms)
     def getActiveAlarm(self):
-        raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
-        # *** Implement me
-        # Must return: result, alarms
+        if self._monitor:
+            msg = 'error status store description.'
+            return  DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK, msg),  self._create_activealarm(self._monitor.error)
+        else:
+            return  DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.NG, ''),  []
 
     # RETURN_ID getFeedbackPosJoint(out JointPos pos)
     def getFeedbackPosJoint(self):
-        raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
-        # *** Implement me
-        # Must return: result, pos
+        if self._monitor:
+            return  DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK,''),  self._monitor.joints
+        else:
+            return  DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.NG,''),  []
 
     # RETURN_ID getManipInfo(out ManipInfo mInfo)
     def getManipInfo(self):
-        raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
-        # *** Implement me
-        # Must return: result, mInfo
+        return  DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK,''), \
+            COMMON_IDL._0_JARA_ARM.ManipInfo('Tokyo Robotics Inc.', 'ToroboArm', self._axisnum, 1, False)
 
     # RETURN_ID getSoftLimitJoint(out LimitSeq softLimit)
     def getSoftLimitJoint(self):
-        raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
-        # *** Implement me
-        # Must return: result, softLimit
+        limit_joint = []
+        
+        for i in range(self._axisnum):
+            limit_joint.append(DATATYPES_IDL._0_JARA_ARM.LimitValue(\
+                                                                    math.radians(self._limit_joint_deg[i][0]),\
+                                                                    math.radians(self._limit_joint_deg[i][1])))
+
+        return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK,''), limit_joint
 
     # RETURN_ID getState(out ULONG state)
     def getState(self):
-        raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
-        # *** Implement me
-        # Must return: result, state
+
+        if not self._monitor or not self._middle:
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.NG,'')
+        
+        self._state = 0
+        counter = 0
+
+        #check servo
+        tmp = self._monitor._sysmode
+        for val in tmp:
+            if val == self._SYSTEMMODE_RUN:
+                counter = counter + 1
+
+        if counter == self._axisnum:
+            self._state = self._state | 0x01
+
+        #check moving
+        tmp = self._monitor._trjstatus
+        for val in tmp:
+            if val == self._TRJSTATUS_START or val == self._TRJSTATUS_RUNNING or val == self._TRJSTATUS_NEXTPOINT:
+                self._state = self._state | 0x02
+                break
+
+        #check alarm
+        tmp = self._monitor.error
+        for val in tmp:
+            if val > 0:
+                self._state = self._state | 0x04
+                break
+
+        #check buffer full
+        tmp = self._monitor.trjremain
+        for val in tmp:
+            if val >= self._TRJREMAIN_BUFFER_MAX:
+                self._state = self._state | 0x08
+                break
+
+        if self._middle._middle_idl_state == self._middle.MIDDLE_IDL_STATE_PAUSE:
+            self._state = self._state | 0x10
+            
+        return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK,''), self._state
+        
 
     # RETURN_ID servoOFF()
     def servoOFF(self):
-        raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
-        # *** Implement me
-        # Must return: result
-
+        if self._controller:
+            self._controller.servo_off()
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK,'')
+        else:
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.NG,'')
+    
     # RETURN_ID servoON()
     def servoON(self):
-        raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
-        # *** Implement me
-        # Must return: result
+        if self._controller:
+            self._controller.servo_on()
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK,'')
+        else:
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.NG,'')
 
     # RETURN_ID setSoftLimitJoint(in LimitSeq softLimit)
     def setSoftLimitJoint(self, softLimit):

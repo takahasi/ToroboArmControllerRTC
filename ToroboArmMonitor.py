@@ -26,6 +26,8 @@ class ToroboArmMonitor(ToroboArm.ToroboArm):
             self._mode = [0 for i in range(7)]
             self._error = [0 for i in range(7)]
             self._trjstatus = [0 for i in range(7)]
+            self._sysmode = [0 for i in range(7)]
+            self._trjremain = [0 for i in range(7)]
             self._moving = False
 
     def _init_communication(self):
@@ -47,6 +49,8 @@ class ToroboArmMonitor(ToroboArm.ToroboArm):
                 self._mode[i] = 0
                 self._error[i] = 0
                 self._trjstatus[i] = 0
+                self._sysmode[i] = 0
+                self._trjremain[i] = 0
             self._moving = False
 
     def _parse_contents(self, contents):
@@ -63,6 +67,8 @@ class ToroboArmMonitor(ToroboArm.ToroboArm):
                     self._mode[i] = js["ctrlMode"]
                     self._error[i] = js["ewStatus"]
                     self._trjstatus[i] = js["trjStatus"]
+                    self._sysmode[i] = js["systemMode"]
+                    self._trjremain[i] = js["trjViaRemain"]
                 except KeyError:
                     logging.error("json KeyError:\n" + str(state))
                     continue
@@ -167,6 +173,18 @@ class ToroboArmMonitor(ToroboArm.ToroboArm):
             logging.debug("trjstatus:" + str(self._trjstatus))
             return self._trjstatus
 
+    @property
+    def sysmode(self):
+        with self._lock:
+            logging.debug("sysmode:" + str(self._sysmode))
+            return self._sysmode
+
+    @property
+    def trjremain(self):
+        with self._lock:
+            logging.debug("trjremain:" + str(self._trjremain))
+            return self._trjremain
+    
 
 if __name__ == '__main__':
     ToroboArmMonitor()

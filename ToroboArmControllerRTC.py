@@ -226,10 +226,20 @@ class ToroboArmControllerRTC(OpenRTM_aist.DataFlowComponentBase):
         self._target_mode = 0
         self._state = ToroboArmControllerState.ControllerState()
 
+        self._common.set_controller(self._controller)
+        self._common.set_monitor(self._monitor)
+        self._common.set_middle(self._middle)
+
+        self._middle.set_controller(self._controller)
+        self._middle.set_monitor(self._monitor)
+        self._middle.set_common(self._common) # set _common to use getState
+
         if self._stub_mode == ['on']:
             self._controller.stub = True
             self._monitor.stub = True
 
+        self._controller.set_middle(self._middle)
+            
         self._controller.start()
         self._monitor.start()
 
@@ -247,6 +257,14 @@ class ToroboArmControllerRTC(OpenRTM_aist.DataFlowComponentBase):
         #
     def onDeactivated(self, ec_id):
 
+        self._common.unset_controller(self._controller)
+        self._common.unset_monitor(self._monitor)
+        self._common.unset_middle(self._middle)
+
+        self._middle.unset_controller(self._controller)
+        self._middle.unset_monitor(self._monitor)
+        self._middle.unset_common(self._common)
+        
         self._controller.stop()
         self._monitor.stop()
         del(self._state)

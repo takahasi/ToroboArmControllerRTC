@@ -14,6 +14,9 @@ import omniORB
 from omniORB import CORBA, PortableServer
 import JARA_ARM, JARA_ARM__POA
 
+import ManipulatorCommonInterface_DataTypes_idl as DATATYPES_IDL
+import ManipulatorCommonInterface_Common_idl as COMMON_IDL
+import math
 
 class ManipulatorCommonInterface_Middle_i (JARA_ARM__POA.ManipulatorCommonInterface_Middle):
     """
@@ -26,8 +29,40 @@ class ManipulatorCommonInterface_Middle_i (JARA_ARM__POA.ManipulatorCommonInterf
         @brief standard constructor
         Initialise member variables here
         """
-        pass
+        self._controller = None
+        self._monitor = None
+        self._common = None
 
+        self.MIDDLE_IDL_STATE_NORMAL = 0
+        self.MIDDLE_IDL_STATE_PAUSE = 1
+        self.MIDDLE_IDL_STATE_STOP = 2
+        self._middle_idl_state = self.MIDDLE_IDL_STATE_NORMAL
+        
+        self._joint_max_speed_deg = [120, 120, 180, 180, 180, 180, 180] # [deg/s] ver2.2.0 P.77
+        self._home_pos = [0, 0, 0, 0, 0, 0, 0]
+
+    def set_controller(self, controller):
+        self._controller = controller
+
+    def unset_controller(self, controller):
+        self._controller = None
+
+    def set_monitor(self, monitor):
+        self._monitor = monitor
+
+    def unset_monitor(self, monitor):
+        self._monitor = None
+
+    def set_common(self, common):
+        self._common = common
+
+    def unset_common(self, common):
+        self._common = None
+
+    @property
+    def middle_idl_state(self):
+        return self._middle_idl_state
+    
     # RETURN_ID closeGripper()
     def closeGripper(self):
         raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
@@ -54,9 +89,10 @@ class ManipulatorCommonInterface_Middle_i (JARA_ARM__POA.ManipulatorCommonInterf
 
     # RETURN_ID getMaxSpeedJoint(out DoubleSeq speed)
     def getMaxSpeedJoint(self):
-        raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
-        # *** Implement me
-        # Must return: result, speed
+        max_speed_joint = []
+        for deg in self._joint_max_speed_deg:
+            max_speed_joint.append(math.radians(deg))
+        return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK,''), max_speed_joint
 
     # RETURN_ID getMinAccelTimeCartesian(out double aclTime)
     def getMinAccelTimeCartesian(self):
@@ -108,15 +144,23 @@ class ManipulatorCommonInterface_Middle_i (JARA_ARM__POA.ManipulatorCommonInterf
 
     # RETURN_ID movePTPJointAbs(in JointPos jointPoints)
     def movePTPJointAbs(self, jointPoints):
-        raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
-        # *** Implement me
-        # Must return: result
+        if self._controller:
+            self._controller.move(jointPoints)
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK,'')
+        else:
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.NG,'')
 
     # RETURN_ID movePTPJointRel(in JointPos jointPoints)
     def movePTPJointRel(self, jointPoints):
-        raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
-        # *** Implement me
-        # Must return: result
+        joint_rel_points = []
+        if self._monitor and self._controller:
+            #get current pos
+            for i, pos in enumerate(jointPoints):
+                joint_rel_points.append(pos + self._monitor.joints[i])
+                self._controller.move(joint_rel_points)
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK,'')
+        else:
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.NG,'')
 
     # RETURN_ID openGripper()
     def openGripper(self):
@@ -126,22 +170,47 @@ class ManipulatorCommonInterface_Middle_i (JARA_ARM__POA.ManipulatorCommonInterf
 
     # RETURN_ID pause()
     def pause(self):
-        raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
-        # *** Implement me
-        # Must return: result
+
+        if self._common:
+            __, state = self._common.getState()
+        else:
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.NG,'')
+
+        if state & 0x01 == 0x00:
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.NOT_SV_ON_ERR,'')
+
+        if state & 0x04 == 0x04:
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.STATUS_ERROR,'')
+
+        if self._middle_idl_state > 0:
+            msg = 'robot is already pause or stop'
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK, msg)
+
+        #update state
+        self._middle_idl_state = self.MIDDLE_IDL_STATE_PAUSE
+
+        return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK,'')
 
     # RETURN_ID resume()
     def resume(self):
-        raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
-        # *** Implement me
-        # Must return: result
-
+        if self._middle_idl_state == self.MIDDLE_IDL_STATE_PAUSE:
+            self._middle_idl_state = self.MIDDLE_IDL_STATE_NORMAL
+        return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK,'')
+            
     # RETURN_ID stop()
     def stop(self):
-        raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
-        # *** Implement me
-        # Must return: result
+        __, state = self._common.getState()
 
+        if state & 0x01 == 0x00:
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.NOT_SV_ON_ERR,'')
+
+        if self._controller:
+            self._controller.clear_command()
+            self._middle_idl_state = self.MIDDLE_IDL_STATE_NORMAL
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK,'')
+        else:
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.NG,'')
+        
     # RETURN_ID setAccelTimeCartesian(in double aclTime)
     def setAccelTimeCartesian(self, aclTime):
         raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
@@ -222,23 +291,28 @@ class ManipulatorCommonInterface_Middle_i (JARA_ARM__POA.ManipulatorCommonInterf
 
     # RETURN_ID setHome(in JointPos jointPoint)
     def setHome(self, jointPoint):
-        raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
-        # *** Implement me
-        # Must return: result
+
+        if len(jointPoint) != 7:
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.NG,'the arguments is too long')
+
+        for i, val in enumerate(jointPoint):
+            self._home_pos[i] = val
+        
+        return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK,'')
 
     # RETURN_ID getHome(out JointPos jointPoint)
     def getHome(self):
-        raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
-        # *** Implement me
-        # Must return: result, jointPoint
+        return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK,''), self._home_pos
+        
 
     # RETURN_ID goHome()
     def goHome(self):
-        raise CORBA.NO_IMPLEMENT(0, CORBA.COMPLETED_NO)
-        # *** Implement me
-        # Must return: result
-
-
+        if self._controller:
+            self._controller.move(self._home_pos)
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.OK,'')
+        else:
+            return DATATYPES_IDL._0_JARA_ARM.RETURN_ID(DATATYPES_IDL._0_JARA_ARM.NG,'')
+            
 if __name__ == "__main__":
     import sys
     
